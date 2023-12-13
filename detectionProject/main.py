@@ -1,14 +1,15 @@
 from flask import Flask, Response, jsonify, request, session, render_template
 
 from flask_wtf import FlaskForm
+from flask_mysqldb import MySQL
 
-from wtforms import FileField, SubmitField, StringField, DecimalRangeField, IntegerRangeField
+from wtforms import FileField, SubmitField, IntegerRangeField
 from werkzeug.utils import secure_filename
-from wtforms.validators import InputRequired, NumberRange
+from wtforms.validators import InputRequired
 import os
-
+import secrets
 import cv2
-
+from threading import Thread
 from YOLOv8_webCam import video_detection
 
 app = Flask(__name__)
@@ -17,71 +18,89 @@ app.config['SECRET KEY'] = 'Kusumpathi@121'
 app.secret_key = '@alienforce'
 app.config['UPLOAD_FOLDER'] = 'static/files'
 
+# MySQL configurations
+app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_USER'] = 'root'
+app.config['MYSQL_PASSWORD'] = 'rish'
+app.config['MYSQL_DB'] = 'detectiondbase'
+
+# Create a MySQL instance
+mysql = MySQL(app)
+
+session_id = secrets.token_hex(16)
 
 class UploadFileForm(FlaskForm):
     file = FileField("File", validators=[InputRequired()])
-    conf_slide = IntegerRangeField('Confidence: ', default=25, validators=[InputRequired()])
+    # conf_slide = IntegerRangeField('Confidence: ', default=25, validators=[InputRequired()])
     submit = SubmitField("Run")
 
+stop_flag = False
 
-def generate_frames(path_x=''):
-    yolo_output = video_detection(path_x)
+def generate_frames_web(path_x, session_data):
+    yolo_output = video_detection(path_x, app, mysql, session_data)
     for detection_ in yolo_output:
-        if detection_ is not None and not detection_.empty():  # Check if frame is not empty
-            ref, buffer = cv2.imencode('.jpg', detection_)
-
-            frame = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-
-
-def generate_frames_web(path_x):
-    yolo_output = video_detection(path_x)
-    for detection_ in yolo_output:
+        if stop_flag:
+            break
         ref, buffer = cv2.imencode('.jpg', detection_)
-
         frame = buffer.tobytes()
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
 @app.route('/', methods=['GET', 'POST'])
+def index():
+    cur = mysql.connection.cursor()
+    cur.execute('''SELECT * FROM detections''')
+    data = cur.fetchall()
+    # print(data)
+    cur.close()
+    return render_template('index.html', data=data)
+
 @app.route('/home', methods=['GET', 'POST'])
 def home():
     session.clear()
     return render_template('index.html')
 
-
 @app.route('/webcam', methods=['GET', 'POST'])
 def webcam():
+    global stop_flag
+    stop_flag = False
+    session_data = {'session_id': secrets.token_hex(16)}
+    session['session_id'] = session_data['session_id']
     session.clear()
+    cur = mysql.connection.cursor()
+    cur.execute('''CREATE TABLE IF NOT EXISTS detections (
+                          id INT AUTO_INCREMENT PRIMARY KEY,
+                          session_id VARCHAR(255),
+                          detection_time DATETIME,
+                          detected_class VARCHAR(255),
+                          confidence FLOAT,
+                          number_of_detections INT)''')
+    mysql.connection.commit()
+    cur.close()
     return render_template('ui.html')
-
-
-@app.route('/frontpage', methods=['GET', 'POST'])
-def front():
-    form = UploadFileForm()
-    if form.validate_on_submit():
-        file = form.file.data
-        file.save(os.path.join(os.path.abspath(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'],
-                               secure_filename(file.filename)))
-        session['video_path'] = os.path.join(
-            os.path.join(os.path.abspath(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'],
-                         secure_filename(file.filename)))
-
-    return render_template('videoproject.html', form=form)
-
-
-@app.route('/video')
-def video():
-    return Response(generate_frames(path_x=session.get('video_path', None)),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
-
 
 @app.route('/webapp')
 def webapp():
-    return Response(generate_frames_web(path_x=0), mimetype='multipart/x-mixed-replace; boundary=frame')
+   global stop_flag
+   if stop_flag:
+       stop_flag = False
+   session_data = {'session_id': session.get('session_id')}
+   print(type(session_data))  # Add this line
+   print(session_data)  # Add this line
+   return Response(generate_frames_web(path_x=0, session_data=session_data), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+@app.route('/reports', methods=['GET', 'POST'])
+def reports():
+    global stop_flag
+    stop_flag = True
+
+    cur = mysql.connection.cursor()
+    cur.execute('''SELECT * FROM detections''')
+    data = cur.fetchall()
+    cur.close()
+
+    return render_template('reports.html', reports=data)
 
 
 if __name__ == '__main__':

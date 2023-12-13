@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 # Load the YOLO model
-model = YOLO('D:/detectionProject/best.pt')
+model = YOLO('/best.pt')
 
 # Perform object detection on the input image
 results = model.predict('D:/detectionProject/images/test.jpg', show=True)

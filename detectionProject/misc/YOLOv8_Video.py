@@ -10,7 +10,7 @@ frame_height = int(cap.get(4))
 
 out = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'), 10, (frame_width, frame_height))
 
-model = YOLO('D:/detectionProject/best.pt')
+model = YOLO('/best.pt')
 
 classNames = ['sleeping']
 
