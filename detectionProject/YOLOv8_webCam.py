@@ -20,11 +20,12 @@ def video_detection(path_x, app, mysql, session_data):
        model = YOLO('D:/detectionProject/best.pt')
 
        classNames = ['sleeping']
+       num_detections = 0
 
        while not stop_flag:
            success, img = cap.read()
            results = model(img, stream=True)
-           num_detections = 0 # Initialize counter
+           # num_detections = 0 # Initialize counter
            for r in results:
                boxes = r.boxes
                for box in boxes:
@@ -43,26 +44,27 @@ def video_detection(path_x, app, mysql, session_data):
                   cv2.putText(img, label, (x1, y1-2), 0, 1, [255, 255, 255], thickness=1, lineType=cv2.LINE_AA)
 
                   num_detections += 1 # Increment counter
+           if num_detections > 0:
+               session_id = str(session_data['session_id'])
+               detection_time = datetime.now()
+               class_name = str(classNames[cls])
+               conf = float(math.ceil((box.conf[0] * 100)) / 100)
+               num_detections = int(num_detections)
 
-                  session_id = str(session_data['session_id'])
-                  detection_time = datetime.now()
-                  class_name = str(classNames[cls])
-                  conf = float(math.ceil((box.conf[0] * 100)) / 100)
-                  num_detections = int(num_detections)
-
-                  # Insert counter value into database
-                  try:
-                      cur = mysql.connection.cursor()
-                      cur.execute('''INSERT INTO detections (session_id, detection_time, detected_class, confidence, number_of_detections)
-                                           VALUES (%s, %s, %s, %s, %s)''',
-                                  (session_id, detection_time, class_name, conf, num_detections))
-                  except Exception as e:
-                      print(f"Failed to insert data into database. Error: {e}")
-                  finally:
-                      mysql.connection.commit()
-                      cur.close()
+               # Insert counter value into database
+               try:
+                   cur = mysql.connection.cursor()
+                   cur.execute('''INSERT INTO detections (session_id, detection_time, detected_class, confidence, number_of_detections)
+                                       VALUES (%s, %s, %s, %s, %s)''',
+                              (session_id, detection_time, class_name, conf, num_detections))
+               except Exception as e:
+                   print(f"Failed to insert data into database. Error: {e}")
+               finally:
+                   mysql.connection.commit()
+                   cur.close()
 
            yield img
+           num_detections = 0
            time.sleep(10) # Pause for 10 seconds
        cap.release()
        cv2.destroyAllWindows()

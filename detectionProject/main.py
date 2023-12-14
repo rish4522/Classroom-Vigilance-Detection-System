@@ -69,13 +69,6 @@ def webcam():
     session['session_id'] = session_data['session_id']
     session.clear()
     cur = mysql.connection.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS detections (
-                          id INT AUTO_INCREMENT PRIMARY KEY,
-                          session_id VARCHAR(255),
-                          detection_time DATETIME,
-                          detected_class VARCHAR(255),
-                          confidence FLOAT,
-                          number_of_detections INT)''')
     mysql.connection.commit()
     cur.close()
     return render_template('ui.html')
