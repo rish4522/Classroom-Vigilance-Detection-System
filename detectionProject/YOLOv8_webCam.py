@@ -35,7 +35,7 @@ def video_detection(path_x, app, mysql, session_data):
                   conf = math.ceil((box.conf[0]*100))/100
                   cls = int(box.cls[0])
                   class_name = classNames[cls]
-                  detection_time = datetime.now()
+                  # detection_time = datetime.now()
                   label = f'{class_name}{conf}'
                   t_size = cv2.getTextSize(label, 0, fontScale=1, thickness=2)[0]
                   c2 = x1 + t_size[0], y1 - t_size[1] - 3
@@ -44,13 +44,23 @@ def video_detection(path_x, app, mysql, session_data):
 
                   num_detections += 1 # Increment counter
 
+                  session_id = str(session_data['session_id'])
+                  detection_time = datetime.now()
+                  class_name = str(classNames[cls])
+                  conf = float(math.ceil((box.conf[0] * 100)) / 100)
+                  num_detections = int(num_detections)
+
                   # Insert counter value into database
-                  cur = mysql.connection.cursor()
-                  cur.execute('''INSERT INTO detections (session_id, detection_time, detected_class, confidence, number_of_detections)
-                                       VALUES (%s, %s, %s, %s, %s)''',
-                              (session_data['session_id'], detection_time, class_name, conf, num_detections))
-                  mysql.connection.commit()
-                  cur.close()
+                  try:
+                      cur = mysql.connection.cursor()
+                      cur.execute('''INSERT INTO detections (session_id, detection_time, detected_class, confidence, number_of_detections)
+                                           VALUES (%s, %s, %s, %s, %s)''',
+                                  (session_id, detection_time, class_name, conf, num_detections))
+                  except Exception as e:
+                      print(f"Failed to insert data into database. Error: {e}")
+                  finally:
+                      mysql.connection.commit()
+                      cur.close()
 
            yield img
            time.sleep(10) # Pause for 10 seconds
