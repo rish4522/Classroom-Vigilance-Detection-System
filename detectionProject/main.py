@@ -52,7 +52,6 @@ def index():
     cur = mysql.connection.cursor()
     cur.execute('''SELECT * FROM detections''')
     data = cur.fetchall()
-    # print(data)
     cur.close()
     return render_template('index.html', data=data)
 
@@ -67,7 +66,7 @@ def webcam():
     stop_flag = False
     session_data = {'session_id': secrets.token_hex(16)}
     session['session_id'] = session_data['session_id']
-    session.clear()
+    # session.clear()
     cur = mysql.connection.cursor()
     mysql.connection.commit()
     cur.close()
@@ -79,8 +78,6 @@ def webapp():
    if stop_flag:
        stop_flag = False
    session_data = {'session_id': session.get('session_id')}
-   print(type(session_data))  # Add this line
-   print(session_data)  # Add this line
    return Response(generate_frames_web(path_x=0, session_data=session_data), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/reports', methods=['GET', 'POST'])
@@ -89,11 +86,15 @@ def reports():
     stop_flag = True
 
     cur = mysql.connection.cursor()
-    cur.execute('''SELECT * FROM detections''')
+    cur.execute('''SELECT * FROM detections ORDER BY detection_time DESC LIMIT 15''')
     data = cur.fetchall()
     cur.close()
 
-    return render_template('reports.html', reports=data)
+    # Converting data into a list of dictionaries
+    reports = [
+        {'session_id': row[1], 'detection_time': row[2], 'detected_class': row[3], 'confidence': row[4],
+         'number_of_detections': row[5]} for row in data]
+    return render_template('reports.html', reports=reports)
 
 
 if __name__ == '__main__':
