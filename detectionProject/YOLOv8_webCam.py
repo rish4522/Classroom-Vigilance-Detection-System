@@ -10,8 +10,10 @@ stop_flag = False
 def video_detection(path_x, app, mysql, session_data):
    with app.app_context():
        global stop_flag
-       video_capture = path_x
-       cap = cv2.VideoCapture(video_capture)
+       video_capture = "rtsp://192.0.0.4:8080/h264_pcm.sdp"
+       cap = cv2.VideoCapture(video_capture, cv2.CAP_FFMPEG)
+       if not cap.isOpened():
+           print("Cannot open RTSP stream")
        frame_width = int(cap.get(3))
        frame_height = int(cap.get(4))
 
